@@ -5,12 +5,17 @@ const path = require("path");
 const file = path.join(__dirname, "db.json");
 
 const adapter = new JSONFile(file);
-const db = new Low(adapter);
 
-// init DB
+// IMPORTANT: pass default data here
+const db = new Low(adapter, { users: [] });
+
+// initialize
 async function init() {
   await db.read();
+
+  // fallback safety (VERY IMPORTANT for Render)
   db.data ||= { users: [] };
+
   await db.write();
 }
 
@@ -48,7 +53,7 @@ async function addMessage(chatId) {
   }
 }
 
-// RESET DAILY LIMIT
+// RESET CHECK
 async function resetIfNeeded(chatId) {
   await db.read();
 

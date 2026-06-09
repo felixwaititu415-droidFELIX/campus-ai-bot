@@ -1,15 +1,72 @@
-const sqlite3 = require("sqlite3").verbose();
+const { Low } = require("lowdb");
+const { JSONFile } = require("lowdb/node");
+const path = require("path");
 
-const db = new sqlite3.Database("./users.db");
+const file = path.join(__dirname, "db.json");
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      chat_id TEXT PRIMARY KEY,
-      messages INTEGER DEFAULT 0,
-      last_reset TEXT
-    )
-  `);
-});
+const adapter = new JSONFile(file);
+const db = new Low(adapter);
 
-module.exports = db;
+// init DB
+async function init() {
+  await db.read();
+  db.data ||= { users: [] };
+  await db.write();
+}
+
+init();
+
+// GET USER
+async function getUser(chatId) {
+  await db.read();
+
+  let user = db.data.users.find(u => u.chat_id === chatId);
+
+  if (!user) {
+    user = {
+      chat_id: chatId,
+      messages: 0,
+      last_reset: new Date().toDateString()
+    };
+
+    db.data.users.push(user);
+    await db.write();
+  }
+
+  return user;
+}
+
+// ADD MESSAGE
+async function addMessage(chatId) {
+  await db.read();
+
+  const user = db.data.users.find(u => u.chat_id === chatId);
+
+  if (user) {
+    user.messages += 1;
+    await db.write();
+  }
+}
+
+// RESET DAILY LIMIT
+async function resetIfNeeded(chatId) {
+  await db.read();
+
+  const user = db.data.users.find(u => u.chat_id === chatId);
+
+  if (!user) return;
+
+  const today = new Date().toDateString();
+
+  if (user.last_reset !== today) {
+    user.messages = 0;
+    user.last_reset = today;
+    await db.write();
+  }
+}
+
+module.exports = {
+  getUser,
+  addMessage,
+  resetIfNeeded
+};
